@@ -27,10 +27,16 @@ setup(
     version=pypi_version,
     description="gitlab tools and scripts wrapper package",
     author="Will Rouesnel",
-    author_email="w.rouesnel@gmail.com",
+    author_email="wrouesnel@wrouesnel.com",
     url="",
     install_requires=["python-gitlab", "structlog", "lxml", "beautifulsoup4", "pyotp"],
     packages=find_packages("."),
     package_data={"": ["VERSION"]},
     entry_points={"console_scripts": ["gitlab-tools=gitlab_tools.__main__:main"]},
+    classifiers=[
+        "License :: MIT License",
+        "Programming Language :: Python",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.10",
+    ],
 )
