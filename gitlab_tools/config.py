@@ -1,25 +1,21 @@
+import base64
 import getpass
+import hashlib
+import logging
+import string
+from random import SystemRandom
+from typing import List
 from urllib.parse import urlparse
 
 import gitlab
 import gitlab.v4
 import gitlab.v4.objects
 import keyring
-
-import logging
 import structlog
 import structlog.processors
 
-from typing import List
-
-import string
-
-import hashlib
-import base64
-from random import SystemRandom
-
-from .uiclient import uiclient
 from .logutil import renderers
+from .uiclient import uiclient
 
 logger: structlog.BoundLogger = structlog.getLogger()
 

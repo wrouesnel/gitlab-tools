@@ -1,7 +1,8 @@
 """Implements custom click command line types"""
 
-import click
 import re
+
+import click
 
 
 class Regex(click.ParamType):

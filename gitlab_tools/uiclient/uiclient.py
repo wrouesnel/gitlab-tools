@@ -2,9 +2,9 @@
 
 from urllib.parse import urlparse
 
-import structlog
-import requests
 import pyotp
+import requests
+import structlog
 from bs4 import BeautifulSoup
 
 BEAUTIFULSOUP_PARSER = "lxml"

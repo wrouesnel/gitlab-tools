@@ -1,0 +1,39 @@
+[flake8]
+exclude = .vscode,.idea,.git,__pycache__,old,build,dist,venv,stubs,venv.*
+max-line-length = 120
+
+ignore = D415,ANN101,D202,E231,C812,C819,E203,SC200,U100
+
+per-file-ignores =
+    setup.py:D100,D101
+    **/*/__init__.py:F401
+    **/tests/conftest.py:D100,ANN201,S101,S404,F401
+    **/tests/**/test_*.py:D100,ANN201,S101
+
+# flake8-formatter-abspath
+format = abspath
+
+# flake8-coding
+no-accept-encodings = True
+
+# flake8-docstrings
+docstring-convention = google
+
+# flake8-spellcheck
+dictionaries=en_US,python,technical,django
+
+# flake8-variables-names
+use-varnames-strict-mode = True
+
+# flake8-kw-args
+max-pos-args = 3
+
+# flake8-requirements
+requirements-max-depth=2
+
+# flake8-sfs
+extend-ignore =
+    # Ignore f-strings
+    SFS301
+    # Ignore format method
+    SFS201

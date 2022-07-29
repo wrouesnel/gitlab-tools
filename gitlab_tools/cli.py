@@ -1,20 +1,17 @@
 #!/usr/bin/env python3
 """self-service gitlab automation for wrouesnel. Solving problems for me."""
 import json
-import ruamel.yaml as yaml
+import os
+import re
+from typing import List
 
 import click
 import git
-import os
+import ruamel.yaml as yaml
 import structlog
-import re
 
-from . import config
-from . import clitypes
-
+from . import clitypes, config
 from .uiclient.uiclient import GitlabUIClient
-
-from typing import List
 
 logger: structlog.BoundLogger = structlog.getLogger()
 
@@ -95,10 +92,11 @@ def organization(ctx, organization_name):
     logger.bind(group_name=g.attributes["name"]).debug("Found organization")
     ctx.obj = OrgContext(ctx.obj, g)
 
+
 @organization.command("clone")
 @click.argument("output_dir", type=str)
 @click.pass_obj
-def clone(obj : OrgContext, output_dir : str):
+def clone(obj: OrgContext, output_dir: str):
     """Clone an entire organization into the given directory"""
     log = logger.bind(organization_name=obj.organization.attributes["name"], output_dir=output_dir)
     log.info("Cloning organization")
@@ -107,7 +105,8 @@ def clone(obj : OrgContext, output_dir : str):
     os.makedirs(output_dir, exist_ok=True)
 
     pids = [
-        (p.attributes["path"], p.attributes["http_url_to_repo"]) for p in obj.organization.projects.list(all=True)
+        (p.attributes["path"], p.attributes["http_url_to_repo"])
+        for p in obj.organization.projects.list(all=True)
     ]
 
     log.bind(num_repos=len(pids)).info("Found repositories to clone")
@@ -124,6 +123,7 @@ def clone(obj : OrgContext, output_dir : str):
             rlog.info("Found a directory with a name matching the derived repository name")
 
     log.info("Finished organization clone")
+
 
 class RepoContext:
     def __init__(self, config, organization, repos):

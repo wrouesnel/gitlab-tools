@@ -14,7 +14,7 @@ source include.sh
 source activate
 
 if [ -z "$1" ]; then
-  exec mypy "-p" "app"
+  exec mypy "-p" "gitlab_tools"
 else
   exec mypy "$@"
 fi

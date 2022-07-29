@@ -1,0 +1,33 @@
+[tool.black]
+line-length = 100
+target-version = ['py39']
+include = '\.pyi?$'
+exclude = '''
+
+(
+  /(
+      \.eggs         # exclude a few common directories in the
+    | \.git          # root of the project
+    | \.hg
+    | \.mypy_cache
+    | \.tox
+    | \.venv
+    | venv
+    | venv\..*
+    | _build
+    | buck-out
+    | build
+    | dist
+    | setup\.py
+    | \.ipynb
+  )/
+)
+
+'''
+
+[tool.isort]
+profile = "black"
+filter_files = true
+py_version = 39
+skip_gitignore = true
+skip_glob = [ "*.ipynb" ]
