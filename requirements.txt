@@ -3,3 +3,8 @@ structlog
 lxml
 beautifulsoup4
 pyotp
+ruamel.yaml
+click
+GitPython
+keyring
+colorama
