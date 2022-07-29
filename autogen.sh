@@ -23,12 +23,12 @@ check_requirements "${requires[@]}"
 
 log "Checking for correct Python version"
 if command -v pyenv ; then
-  python=$(pyenv which python3.9)
+  python=$(pyenv which python3.10)
 else
-  if ! command -v python3.9 >/dev/null; then
-    fatal 1 "Failed to find python3.9. Consider installing pyenv to set it up."
+  if ! command -v python3.10 >/dev/null; then
+    fatal 1 "Failed to find python3.10. Consider installing pyenv to set it up."
   fi
-  python=$(command -v python3.9)
+  python=$(command -v python3.10)
 fi
 
 log "Ensure pull request rebase."
