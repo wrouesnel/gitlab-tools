@@ -1,0 +1,5 @@
+python-gitlab
+structlog
+lxml
+beautifulsoup4
+pyotp
