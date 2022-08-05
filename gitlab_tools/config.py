@@ -4,7 +4,7 @@ import hashlib
 import logging
 import string
 from random import SystemRandom
-from typing import List
+from typing import List, Optional
 from urllib.parse import urlparse
 
 import gitlab
@@ -102,8 +102,17 @@ class Config(object):
     def get_gitlab_client(self) -> gitlab.Gitlab:
         """get a gitlab client based on the current config"""
         self.logger.debug("Setting up gitlab client")
+
+        if self.ssl_verify:
+            if self.ssl_capath is not None:
+                ssl_verify = self.ssl_capath
+            else:
+                ssl_verify = True
+        else:
+            ssl_verify = False
+
         gl = gitlab.Gitlab(
-            self.gitlab_server, private_token=self.token.unmasked(), ssl_verify=self.ssl_verify
+            self.gitlab_server, private_token=self.token.unmasked(), ssl_verify=ssl_verify
         )
 
         self.logger.debug("Authenticating to gitlab...")
@@ -189,6 +198,7 @@ class Config(object):
         gitlab_server=DEFAULT_SERVER,
         user=DEFAULT_USER,
         ssl_verify=True,
+        ssl_capath: Optional[str] = None,
         allow_prompting=False,
     ):
         """
@@ -203,6 +213,7 @@ class Config(object):
         self.user = self._get_user(user)
         self.token = self._get_token()
         self.ssl_verify = ssl_verify
+        self.ssl_capath = ssl_capath
 
         self._gitlab_client = None
         # ctxstack contains the appended results of interstitial commands

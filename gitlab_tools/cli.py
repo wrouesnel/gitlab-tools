@@ -3,14 +3,14 @@
 import json
 import os
 import re
-from typing import List
+from typing import List, Optional
 
 import click
 import git
 import ruamel.yaml as yaml
 import structlog
 
-from . import clitypes, config
+from . import clitypes, config, gitutil
 from .uiclient.uiclient import GitlabUIClient
 
 logger: structlog.BoundLogger = structlog.getLogger()
@@ -27,6 +27,11 @@ DEFAULT_LOGGING = "debug"
     show_default=True,
 )
 @click.option(
+    "--ssl-capath",
+    help="Path to SSL Certificate Authority to use for verification",
+    show_default=True,
+)
+@click.option(
     "--gitlab-server",
     default="https://gitlab.com",
     help="Gitlab server to clone from",
@@ -40,9 +45,11 @@ DEFAULT_LOGGING = "debug"
     show_default=True,
 )
 @click.pass_context
-def cli(ctx, log_level, ssl_verify, gitlab_server, user, interactive):
+def cli(ctx, log_level, ssl_verify, ssl_capath, gitlab_server, user, interactive):
     config.configure_logging(log_level)
-    ctx.obj = config.Config(gitlab_server, user, ssl_verify, allow_prompting=interactive)
+    ctx.obj = config.Config(
+        gitlab_server, user, ssl_verify, ssl_capath=ssl_capath, allow_prompting=interactive
+    )
 
 
 @cli.command("clone-organization")
@@ -66,7 +73,7 @@ def gitlab_org_clone(obj: config.Config, target_org):
         # Check the repo isn't already cloned
         if not os.path.exists(name):
             print("Cloning {} from {}".format(name, clone_link))
-            git.Repo.clone_from(clone_link, name)
+            gitutil.clone_from(obj, clone_link, name)
         else:
             print("Found directory with matching name {}".format(name))
 
@@ -118,7 +125,7 @@ def clone(obj: OrgContext, output_dir: str):
         if not os.path.exists(clone_path):
             rlog.bind(clone_link=clone_link).info("Cloning repository into output dir")
 
-            git.Repo.clone_from(clone_link, clone_path)
+            gitutil.clone_from(obj.config, clone_link, clone_path)
         else:
             rlog.info("Found a directory with a name matching the derived repository name")
 
