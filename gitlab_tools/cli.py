@@ -7,6 +7,7 @@ from typing import List, Optional
 
 import click
 import git
+import gitlab.v4.objects
 import ruamel.yaml as yaml
 import structlog
 
@@ -87,23 +88,64 @@ class OrgContext:
 
 
 @cli.group("organization", invoke_without_command=True)
-@click.argument("organization_name", type=str)
+@click.argument("organization_name", type=str, required=False)
 @click.pass_context
-def organization(ctx, organization_name):
+def organization(ctx, organization_name: Optional[str]):
     """Execute operation on a target organization"""
     ctx.obj: config.Config
     c = ctx.obj.get_gitlab_client()
 
+    g: gitlab.v4.objects.Group
+    if not ctx.invoked_subcommand:
+        if organization_name is None:
+            for g in c.groups.list(get_all=True):
+                # "Niceify" the groups to look a bit more folder like
+                print(g.attributes["full_name"].replace(" / ", "/"))
+            return
+
     g = c.groups.get(organization_name)
+    if not ctx.invoked_subcommand:
+        print(g.attributes["full_name"].replace(" / ", "/"))
+        return
 
     logger.bind(group_name=g.attributes["name"]).debug("Found organization")
     ctx.obj = OrgContext(ctx.obj, g)
 
 
+def _recursive_group_select(g: gitlab.v4.objects.Group) -> List[gitlab.v4.objects.Group]:
+    """Recurse from a group to find all subgroups"""
+    c = g.manager.gitlab
+    sg: gitlab.v4.objects.GroupSubgroup
+
+    groups_selected = [g]
+
+    subgroup: gitlab.v4.objects.GroupSubgroup
+    groups = [g]
+    while True:
+        new_groups = []
+        for g in groups:
+            for subgroup in g.subgroups.list(get_all=True):
+                new_groups.append(c.groups.get(subgroup.get_id()))
+        if len(new_groups) == 0:
+            break
+        groups_selected.extend(new_groups)
+        groups = new_groups
+
+    return groups_selected
+
+
 @organization.command("clone")
+@click.option(
+    "--recursive",
+    "-r",
+    is_flag=True,
+    show_default=True,
+    default=False,
+    help="Recursively clone repositories in subgroups",
+)
 @click.argument("output_dir", type=str)
 @click.pass_obj
-def clone(obj: OrgContext, output_dir: str):
+def clone(obj: OrgContext, recursive: bool, output_dir: str):
     """Clone an entire organization into the given directory"""
     log = logger.bind(organization_name=obj.organization.attributes["name"], output_dir=output_dir)
     log.info("Cloning organization")
@@ -111,23 +153,37 @@ def clone(obj: OrgContext, output_dir: str):
     log.debug("Creating output directory")
     os.makedirs(output_dir, exist_ok=True)
 
-    pids = [
-        (p.attributes["path"], p.attributes["http_url_to_repo"])
-        for p in obj.organization.projects.list(all=True)
-    ]
+    groups_selected = [obj.organization]
+    group_root_path = obj.organization.attributes["full_path"].replace("/", os.path.sep)
 
-    log.bind(num_repos=len(pids)).info("Found repositories to clone")
+    if recursive:
+        log.info("Discovering subgroups for recursive clone")
+        groups_selected = _recursive_group_select(obj.organization)
 
-    for name, clone_link in pids:
-        rlog = log.bind(repo_name=name)
-        clone_path = os.path.join(output_dir, name)
-        rlog.bind(clone_path=clone_path).debug("Check the repo isn't already cloned")
-        if not os.path.exists(clone_path):
-            rlog.bind(clone_link=clone_link).info("Cloning repository into output dir")
+    g: gitlab.v4.objects.Group
+    for g in groups_selected:
+        group_relpath = os.path.relpath(
+            g.attributes["full_path"].replace("/", os.path.sep), group_root_path
+        )
+        group_output_dir = os.path.join(output_dir, group_relpath)
+        os.makedirs(group_output_dir, exist_ok=True)
 
-            gitutil.clone_from(obj.config, clone_link, clone_path)
-        else:
-            rlog.info("Found a directory with a name matching the derived repository name")
+        pids = [
+            (p.attributes["path"], p.attributes["http_url_to_repo"])
+            for p in g.projects.list(all=True)
+        ]
+
+        log.bind(num_repos=len(pids)).info("Found repositories to clone")
+
+        for name, clone_link in pids:
+            rlog = log.bind(repo_name=name)
+            clone_path = os.path.join(group_output_dir, name)
+            rlog.bind(clone_path=clone_path).debug("Check the repo isn't already cloned")
+            if not os.path.exists(clone_path):
+                rlog.bind(clone_link=clone_link).info("Cloning repository into output dir")
+                gitutil.clone_from(obj.config, clone_link, clone_path)
+            else:
+                rlog.info("Found a directory with a name matching the derived repository name")
 
     log.info("Finished organization clone")
 
@@ -140,27 +196,49 @@ class RepoContext:
 
 
 @organization.group("repos", invoke_without_command=True)
+@click.option(
+    "--recursive",
+    "-r",
+    is_flag=True,
+    show_default=True,
+    default=False,
+    help="Recursively access repositories in subprojects",
+)
 @click.argument("repo_regex", type=clitypes.Regex())
 @click.pass_context
-def repos(ctx, repo_regex):
+def repos(ctx, recursive, repo_regex):
     """operate on sets of repos"""
     ctx.obj: OrgContext
+    log = logger.bind(organization_name=ctx.obj.organization.attributes["name"])
 
-    projects = [
-        (p, repo_regex.match(p.attributes["name"]))
-        for p in ctx.obj.organization.projects.list(all=True)
-        if repo_regex.match(p.attributes["name"]) is not None
-    ]
+    groups_selected = [ctx.obj.organization]
+    if recursive:
+        log.info("Discovering subgroups")
+        groups_selected = _recursive_group_select(ctx.obj.organization)
 
-    for p, _ in projects:
-        logger.bind(repo_name=p.attributes["name"]).debug("Found repository")
+    g: gitlab.v4.objects.Group
+    projects = []
+    for g in groups_selected:
+        projects = [
+            (p, repo_regex.match(p.attributes["name"]))
+            for p in g.projects.list(all=True)
+            if repo_regex.match(p.attributes["name"]) is not None
+        ]
 
-    if len(projects) > 0:
-        logger.bind(num_repos=len(projects)).info("Matched repositories.")
-    else:
-        logger.error("No repos matched for regex: {}".format(repo_regex))
+        for p, _ in projects:
+            logger.bind(repo_name=p.attributes["name"]).debug("Found repository")
+
+        if len(projects) > 0:
+            logger.bind(num_repos=len(projects)).info("Matched repositories.")
+        else:
+            logger.error("No repos matched for regex: {}".format(repo_regex))
 
     ctx.obj = RepoContext(ctx.obj.config, ctx.obj.organization, projects)
+
+    if not ctx.invoked_subcommand:
+        p: gitlab.v4.objects.Project
+        for p, _ in projects:
+            print(p.attributes["path_with_namespace"])
 
 
 @repos.command("list")
